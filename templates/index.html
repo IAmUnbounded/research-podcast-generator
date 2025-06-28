@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Research Paper to Podcast</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        .loading {
+            display: none;
+        }
+        .loading.active {
+            display: block;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen p-8">
+    <div class="max-w-4xl mx-auto">
+        <header class="text-center mb-12">
+            <h1 class="text-4xl font-bold text-blue-600 mb-2">Research Paper to Podcast</h1>
+            <p class="text-gray-600">Transform research papers into engaging podcast episodes using AI</p>
+        </header>
+
+        <div class="bg-white rounded-lg shadow-md p-8 mb-8">
+            <div class="mb-6">
+                <label for="source" class="block text-gray-700 font-medium mb-2">Enter PDF URL or upload a file:</label>
+                <div class="flex space-x-4">
+                    <input type="text" id="source" placeholder="https://example.com/paper.pdf" 
+                           class="flex-grow p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    <input type="file" id="fileInput" accept=".pdf" class="hidden">
+                    <button onclick="document.getElementById('fileInput').click()" 
+                            class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-2 px-4 rounded-lg transition">
+                        Upload PDF
+                    </button>
+                </div>
+                <p id="fileName" class="text-sm text-gray-500 mt-2"></p>
+            </div>
+
+            <button id="generateBtn" 
+                    class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition transform hover:scale-105">
+                Generate Podcast
+            </button>
+        </div>
+
+        <div id="loading" class="text-center mb-8 loading">
+            <div class="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-600 mb-4"></div>
+            <p class="text-gray-600">Generating your podcast... This may take a minute.</p>
+        </div>
+
+        <div id="result" class="hidden bg-white rounded-lg shadow-md p-8">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">Generated Podcast Script</h2>
+            <div id="script" class="prose max-w-none bg-gray-50 p-6 rounded-lg mb-6">
+                <!-- Script will be inserted here -->
+            </div>
+            
+            <div id="audioPlayer" class="mt-6">
+                <h3 class="text-xl font-semibold mb-4">Listen to the Podcast</h3>
+                <div id="audioContainer" class="bg-gray-50 p-4 rounded-lg">
+                    <audio id="podcastAudio" controls class="w-full" style="min-width: 300px;">
+                        Your browser does not support the audio element.
+                    </audio>
+                    <div class="mt-2 flex justify-between items-center text-sm text-gray-500">
+                        <span id="audioDuration">00:00</span>
+                        <a id="downloadAudio" href="#" class="text-blue-600 hover:text-blue-800">
+                            <i class="fas fa-download mr-1"></i> Download
+                        </a>
+                    </div>
+                </div>
+                <div id="audioError" class="hidden mt-2 text-red-500 text-sm">
+                    There was an error generating the audio. Please try again.
+                </div>
+            </div>
+
+            <div class="mt-8 pt-6 border-t border-gray-200">
+                <button id="newPodcast" 
+                        class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-6 rounded-lg transition">
+                    Create Another Podcast
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://kit.fontawesome.com/your-code.js" crossorigin="anonymous"></script>
+    <script>
+        // Update audio player with the generated audio
+        function updateAudioPlayer(audioUrl) {
+            const audioPlayer = document.getElementById('podcastAudio');
+            const downloadLink = document.getElementById('downloadAudio');
+            const audioError = document.getElementById('audioError');
+            const audioDuration = document.getElementById('audioDuration');
+            
+            if (audioUrl) {
+                audioPlayer.src = audioUrl;
+                downloadLink.href = audioUrl;
+                downloadLink.download = `podcast-${new Date().toISOString().slice(0, 10)}.mp3`;
+                
+                // When audio metadata is loaded, update duration
+                audioPlayer.addEventListener('loadedmetadata', function() {
+                    const duration = Math.floor(audioPlayer.duration);
+                    const minutes = Math.floor(duration / 60);
+                    const seconds = duration % 60;
+                    audioDuration.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                });
+                
+                audioError.classList.add('hidden');
+                document.getElementById('audioContainer').classList.remove('hidden');
+            } else {
+                document.getElementById('audioContainer').classList.add('hidden');
+                audioError.classList.remove('hidden');
+            }
+        }
+        const generateBtn = document.getElementById('generateBtn');
+        const loading = document.getElementById('loading');
+        const result = document.getElementById('result');
+        const scriptEl = document.getElementById('script');
+        const sourceInput = document.getElementById('source');
+        const fileInput = document.getElementById('fileInput');
+        const fileName = document.getElementById('fileName');
+        const newPodcastBtn = document.getElementById('newPodcast');
+
+        // Handle file selection
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                fileName.textContent = `Selected: ${e.target.files[0].name}`;
+                sourceInput.value = ''; // Clear URL input
+            }
+        });
+
+        // Generate podcast
+        generateBtn.addEventListener('click', async () => {
+            const source = sourceInput.value.trim();
+            const file = fileInput.files[0];
+            
+            if (!source && !file) {
+                alert('Please enter a URL or upload a PDF file');
+                return;
+            }
+
+            // Show loading state
+            loading.classList.add('active');
+            generateBtn.disabled = true;
+            
+            try {
+                const formData = new FormData();
+                
+                let response;
+                
+                if (file) {
+                    // Handle file upload
+                    formData.append('file', file);
+                    
+                    response = await fetch('/generate', {
+                        method: 'POST',
+                        body: formData
+                    });
+                } else {
+                    // Handle URL input
+                    response = await fetch('/generate', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            source: source
+                        })
+                    });
+                }
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to generate podcast');
+                }
+
+                const result = await response.json();
+                
+                // Display the generated script
+                if (result.script) {
+                    scriptEl.innerHTML = result.script.replace(/\n/g, '<br>');
+                    scriptEl.classList.remove('hidden');
+                } else {
+                    scriptEl.innerHTML = 'No script was generated.';
+                    scriptEl.classList.remove('hidden');
+                }
+                
+                // Update audio player if audio is available
+                if (result.audio_url) {
+                    updateAudioPlayer(result.audio_url);
+                } else {
+                    document.getElementById('audioContainer').classList.add('hidden');
+                    document.getElementById('audioError').classList.remove('hidden');
+                }
+                
+                result.classList.remove('hidden');
+                
+                // Scroll to result
+                result.scrollIntoView({ behavior: 'smooth' });
+                
+            } catch (error) {
+                alert(`Error: ${error.message}`);
+                console.error('Error:', error);
+            } finally {
+                loading.classList.remove('active');
+                generateBtn.disabled = false;
+            }
+        });
+
+        // Reset form
+        newPodcastBtn.addEventListener('click', () => {
+            result.classList.add('hidden');
+            sourceInput.value = '';
+            fileInput.value = '';
+            fileName.textContent = '';
+            scriptEl.textContent = '';
+            document.getElementById('podcastAudio').pause();
+            document.getElementById('podcastAudio').src = '';
+            document.getElementById('audioContainer').classList.add('hidden');
+            document.getElementById('audioError').classList.add('hidden');
+        });
+    </script>
+</body>
+</html>
